@@ -5,7 +5,41 @@ import math
 import numpy as np
 from typing import Optional
 
+class PositionalEncoding(nn.Module):
+    """
+    Positional Encoding module to inject position information into the input embeddings
+    - PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
+    - PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+    """
 
+    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        
+        position = torch.arange(0, max_len).unsqueeze(1).float() # position index
+        
+        # 1/10000^(2i/d_model) = exp((2i/d_model) * log(1/10000)) = exp(-log(10000) * (2i/d_model))
+        mul_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+
+        # Apply sine to even indices and cosine to odd indices
+        pe[:, 0::2] = torch.sin(position * mul_term)
+        pe[:, 1::2] = torch.cos(position * mul_term)
+    
+        # (1, max_len, d_model) so that it can be added to input embeddings of shape (B, T, d_model)
+        pe = pe.unsqueeze(0)  
+
+        # buffer so that it's not considered a model parameter
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x -> (B, T, d_model)
+        returns:
+            output -> (B, T, d_model)
+        """
+        x = x + self.pe[:, :x.size(1), :]
+        return x
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -222,40 +256,80 @@ class DecoderLayer(nn.Module):
         return x, (self_att_weights, cross_att_weights)
     
 
-
-    
-class PositionalEncoding(nn.Module):
+class TransformerEncoder(nn.Module):
     """
-    Positional Encoding module to inject position information into the input embeddings
-    PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
-    PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+    Transformer Encoder consisting of multiple Encoder layers
     """
 
-    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
+    def __init__(self, vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1):
         super().__init__()
-        pe = torch.zeros(max_len, d_model)
-        
-        position = torch.arange(0, max_len).unsqueeze(1).float() # position index
-        
-        # 1/10000^(2i/d_model) = exp((2i/d_model) * log(1/10000)) = exp(-log(10000) * (2i/d_model))
-        mul_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.positional_encoding = PositionalEncoding(d_model, max_len, dropout=dropout)
+        self.layers = nn.ModuleList([EncoderLayer(h, d_model, d_ff, dropout) for _ in range(num_layers)])
+        self.dropout = nn.Dropout(dropout)
+        self.d_model = d_model
 
-        # Apply sine to even indices and cosine to odd indices
-        pe[:, 0::2] = torch.sin(position * mul_term)
-        pe[:, 1::2] = torch.cos(position * mul_term)
-    
-        # (1, max_len, d_model) so that it can be added to input embeddings of shape (B, T, d_model)
-        pe = pe.unsqueeze(0)  
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
 
-        # buffer so that it's not considered a model parameter
-        self.register_buffer('pe', pe)
+        # Embed input tokens and scale by sqrt(d_model)
+        x = self.embedding(x) * math.sqrt(self.d_model)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x -> (B, T, d_model)
-        returns:
-            output -> (B, T, d_model)
-        """
-        x = x + self.pe[:, :x.size(1), :]
+        # Add positional encoding
+        x = self.positional_encoding(x)
+        x = self.dropout(x)
+
+        # Pass through each encoder layer
+        for layer in self.layers:
+            x, _ = layer(x, mask)
         return x
+
+class TransformerDecoder(nn.Module):
+    """
+    Transformer Decoder consisting of multiple Decoder layers
+    """
+
+    def __init__(self, vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.positional_encoding = PositionalEncoding(d_model, max_len, dropout=dropout)
+        self.layers = nn.ModuleList([DecoderLayer(h, d_model, d_ff, dropout) for _ in range(num_layers)])
+        self.dropout = nn.Dropout(dropout)
+        self.d_model = d_model
+
+        # Final linear layer to project to vocabulary
+        self.fc_out = nn.Linear(d_model, vocab_size)
+        
+
+    def forward(self, x: torch.Tensor, enc_outputs: torch.Tensor, tgt_mask: Optional[torch.Tensor] = None, src_mask: Optional[torch.Tensor] = None):
+
+        # Embed input tokens and scale by sqrt(d_model)
+        x = self.embedding(x) * math.sqrt(self.d_model)
+
+        # Add positional encoding
+        x = self.positional_encoding(x)
+        x = self.dropout(x)
+
+        # Pass through each decoder layer
+        for layer in self.layers:
+            x, _ = layer(x, enc_outputs, tgt_mask, src_mask)
+
+        # Project to vocabulary
+        output = self.fc_out(x)
+
+        return output
+    
+
+class Transformer(nn.Module):
+    """
+    Complete Transformer model consisting of Encoder and Decoder
+    """
+
+    def __init__(self, src_vocab_size: int, tgt_vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1):
+        super().__init__()
+        self.encoder = TransformerEncoder(src_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout)
+        self.decoder = TransformerDecoder(tgt_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout)
+
+    def forward(self, src: torch.Tensor, tgt: torch.Tenspr, src_mask: Optional[torch.Tensor] = None, tgt_mask: Optional[torch.Tensor] = None):
+        enc_outputs = self.encoder(src, src_mask)
+        output = self.decoder(tgt, enc_outputs, tgt_mask, src_mask)
+        return output
