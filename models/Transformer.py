@@ -199,7 +199,7 @@ class EncoderLayer(nn.Module):
     """
 
     def __init__(self, h: int, d_model: int, d_ff: int, dropout: float = 0.1):
-        super().init__()
+        super().__init__()
         self.multi_head_attention = MultiHeadAttention(h, d_model, dropout)
         self.feed_forward_network = PositionWiseFeedForwardNetwork(d_model, d_ff, dropout)
 
@@ -240,8 +240,8 @@ class DecoderLayer(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
         self.dropout3 = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor, encoder_outputs: torch.Tensor, tgt_msk: Optional[torch.Tensor] = None, src_mask: Optional[torch.Tensor] = None):
-        self_att_outputs, self_att_weights = self.self_attention(x, x, x, tgt_msk)
+    def forward(self, x: torch.Tensor, encoder_outputs: torch.Tensor, tgt_mask: Optional[torch.Tensor] = None, src_mask: Optional[torch.Tensor] = None):
+        self_att_outputs, self_att_weights = self.self_attention(x, x, x, tgt_mask)
         x = x + self.dropout1(self_att_outputs)
         x = self.layer_norm1(x)
 
@@ -329,7 +329,7 @@ class Transformer(nn.Module):
         self.encoder = TransformerEncoder(src_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout)
         self.decoder = TransformerDecoder(tgt_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout)
 
-    def forward(self, src: torch.Tensor, tgt: torch.Tenspr, src_mask: Optional[torch.Tensor] = None, tgt_mask: Optional[torch.Tensor] = None):
+    def forward(self, src: torch.Tensor, tgt: torch.Tensor, src_mask: Optional[torch.Tensor] = None, tgt_mask: Optional[torch.Tensor] = None):
         enc_outputs = self.encoder(src, src_mask)
         output = self.decoder(tgt, enc_outputs, tgt_mask, src_mask)
         return output
