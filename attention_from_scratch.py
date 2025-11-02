@@ -133,3 +133,129 @@ class MultiHeadAttention(nn.Module):
         outputs = self.dropout(outputs) 
 
         return outputs, attention_weights
+    
+class PositionWiseFeedForwardNetwork(nn.Module):
+    """
+    Position-wise Feed-Forward Network as described in 'Attention is All You Need'
+    Consists of two linear transformations with a ReLU activation in between.
+    """
+
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1):
+        super().__init__()
+        self.fc1 = nn.Linear(d_model, d_ff)
+        self.fc2 = nn.Linear(d_ff, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x -> (B, T, d_model)
+        returns:
+            output -> (B, T, d_model)
+        """
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+    
+class EncoderLayer(nn.Module):
+    """
+    Transformer Encoder layer consisting of Multi-Head Attention and Position-Wise Feed-Forward Network
+    """
+
+    def __init__(self, h: int, d_model: int, d_ff: int, dropout: float = 0.1):
+        super().init__()
+        self.multi_head_attention = MultiHeadAttention(h, d_model, dropout)
+        self.feed_forward_network = PositionWiseFeedForwardNetwork(d_model, d_ff, dropout)
+
+        self.layer_norm1 = nn.LayerNorm(d_model)
+        self.layer_norm2 = nn.LayerNorm(d_model)
+
+        self.dropout1 = nn.Dropout(dropout)  
+        self.dropout2 = nn.Dropout(dropout)
+
+    
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
+        att_outputs, att_weights = self.multi_head_attention(x, x, x, mask)
+        x = x + self.dropout1(att_outputs)
+        x = self.layer_norm1(x)
+
+        ff_outputs = self.feed_forward_network(x)
+        x = x + self.dropout2(ff_outputs)
+        x = self.layer_norm2(x)
+
+        return x, att_weights
+    
+class DecoderLayer(nn.Module):
+    """
+    Transformer Decoder layer consisting of Masked Multi-Head Self-Attention, Multi-Head Cross-Attention, and Position-Wise Feed-Forward Network
+    """
+
+    def __init__(self, h: int, d_model: int, d_ff: int, dropout: float = 0.1):
+        super().__init__()
+        self.self_attention = MultiHeadAttention(h, d_model, dropout)
+        self.cross_attention = MultiHeadAttention(h, d_model, dropout)
+        self.feed_forward_network = PositionWiseFeedForwardNetwork(d_model, d_ff, dropout)
+
+        self.layer_norm1 = nn.LayerNorm(d_model)
+        self.layer_norm2 = nn.LayerNorm(d_model)
+        self.layer_norm3 = nn.LayerNorm(d_model)
+
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor, encoder_outputs: torch.Tensor, tgt_msk: Optional[torch.Tensor] = None, src_mask: Optional[torch.Tensor] = None):
+        self_att_outputs, self_att_weights = self.self_attention(x, x, x, tgt_msk)
+        x = x + self.dropout1(self_att_outputs)
+        x = self.layer_norm1(x)
+
+        cross_att_outputs, cross_att_weights = self.cross_attention(x, encoder_outputs, encoder_outputs, src_mask)
+        x = x + self.dropout2(cross_att_outputs)
+        x = self.layer_norm2(x)
+
+        ff_outputs = self.feed_forward_network(x)
+        x = x + self.dropout3(ff_outputs)
+        x = self.layer_norm3(x)
+
+        return x, (self_att_weights, cross_att_weights)
+    
+
+
+    
+class PositionalEncoding(nn.Module):
+    """
+    Positional Encoding module to inject position information into the input embeddings
+    PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
+    PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+    """
+
+    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        
+        position = torch.arange(0, max_len).unsqueeze(1).float() # position index
+        
+        # 1/10000^(2i/d_model) = exp((2i/d_model) * log(1/10000)) = exp(-log(10000) * (2i/d_model))
+        mul_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+
+        # Apply sine to even indices and cosine to odd indices
+        pe[:, 0::2] = torch.sin(position * mul_term)
+        pe[:, 1::2] = torch.cos(position * mul_term)
+    
+        # (1, max_len, d_model) so that it can be added to input embeddings of shape (B, T, d_model)
+        pe = pe.unsqueeze(0)  
+
+        # buffer so that it's not considered a model parameter
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x -> (B, T, d_model)
+        returns:
+            output -> (B, T, d_model)
+        """
+        x = x + self.pe[:, :x.size(1), :]
+        return x
