@@ -18,8 +18,18 @@ with open(en_path, "w", encoding="utf-8") as f_en, open(de_path, "w", encoding="
         f_en.write(en + "\n")
         f_de.write(de + "\n")
 
-print(f"Saved files:\n  {en_path}\n  {de_path}")
+print(f"Saved training files:\n  {en_path}\n  {de_path}")
 
+val_en_path = "data/val.en"
+val_de_path = "data/val.de"
+with open(val_en_path, "w", encoding="utf-8") as f_en, open(val_de_path, "w", encoding="utf-8") as f_de:
+    for item in dataset["validation"]:
+        en = item["translation"]["en"].strip().replace("\n", " ")
+        de = item["translation"]["de"].strip().replace("\n", " ")
+        f_en.write(en + "\n")
+        f_de.write(de + "\n")
+
+print(f"Saved validation files:\n  {val_en_path}\n  {val_de_path}")
 
 
 # Concatenate for joint BPE training
