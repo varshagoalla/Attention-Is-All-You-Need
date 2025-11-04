@@ -5,12 +5,16 @@ import os
 import time
 from tqdm import tqdm
 import json
+import sys
 
-from Transformer import Transformer
-from tokenizer import Tokenizer
-from dataset import TranslationDataset, collate_fn
-from config import Config
-from utils import WarmupLRScheduler, LabelSmoothingLoss, create_masks
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+from models.Transformer import Transformer
+from utils.tokenizer import Tokenizer
+from utils.dataset import TranslationDataset, collate_fn
+from config.config import Config
+from utils.utils import WarmupLRScheduler, LabelSmoothingLoss, create_masks
 
 class Trainer:
     def __init__(self, config):

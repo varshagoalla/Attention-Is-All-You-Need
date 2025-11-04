@@ -2,11 +2,11 @@ import torch
 
 class Config:
     # Data paths
-    train_src = "../data/train.en"
-    train_tgt = "../data/train.de"
-    val_src = "../data/val.en"
-    val_tgt = "../data/val.de"
-    model_path = "../data/wmt_bpe.model"
+    train_src = "data/train.en"
+    train_tgt = "data/train.de"
+    val_src = "data/val.en"
+    val_tgt = "data/val.de"
+    model_path = "data/wmt_bpe.model"
 
     # Model architecture parameters
     d_model = 512
