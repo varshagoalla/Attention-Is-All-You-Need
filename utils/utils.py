@@ -75,3 +75,48 @@ class LabelSmoothingLoss(nn.Module):
         loss = loss.masked_select(mask).mean()
         
         return loss
+    
+
+def create_padding_mask(seq, pad_idx=0):
+    """
+    Create a padding mask for sequences
+    seq: (B, T)
+    Returns: (B, 1, 1, T)
+    """
+    mask = (seq == pad_idx).unsqueeze(1).unsqueeze(2)
+    return mask 
+
+def create_causal_mask(size):
+    """
+    Creates causal (look-ahead) mask for decoder
+    Prevents attending to future positions
+    
+    size: sequence length
+    
+    Returns:
+        mask: (1, size, size) - lower triangular matrix
+    """
+    mask = torch.tril(torch.ones((size, size))).unsqueeze(0)
+    return mask
+
+def create_masks(src, tgt, pad_idx=0):
+    """
+    Create masks for source and target sequences
+    Args:
+        src: (B, T_src) - source sequences
+        tgt: (B, T_tgt) - target sequences
+        pad_idx: padding token index
+    
+    Returns:
+        src_mask: (B, 1, 1, T_src) - source padding mask
+        tgt_mask: (B, 1, T_tgt, T_tgt) - combined causal + padding mask for target
+    """
+    src_mask = create_padding_mask(src, pad_idx)
+    
+    tgt_padding_mask = create_padding_mask(tgt, pad_idx) # (B, 1, 1, T_tgt)
+    tgt_seq_len = tgt.shape[1]
+    tgt_causal_mask = create_causal_mask(tgt_seq_len).to(tgt.device) # (1, T_tgt, T_tgt)
+    
+    tgt_mask = tgt_padding_mask & tgt_causal_mask # Broadcasting will handle dimensions (B, 1, T_tgt, T_tgt)
+    
+    return src_mask, tgt_mask
