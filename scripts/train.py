@@ -56,18 +56,18 @@ class Trainer:
         self.model = Transformer(
             src_vocab_size=self.vocab_size,
             tgt_vocab_size=self.vocab_size,
+            num_layers=config.num_layers,
+            h=config.n_heads,
             d_model=config.d_model,
-            nhead=config.n_heads,
-            num_encoder_layers=config.num_layers,
-            num_decoder_layers=config.num_layers,
-            dim_feedforward=config.ff_dim,
+            d_ff=config.ff_dim,
+            max_len=config.max_len,            
             dropout=config.dropout
         ).to(self.device)
 
         self.criterion = LabelSmoothingLoss(
             vocab_size=self.vocab_size,
             pad_idx=self.tokenizer.pad_id,
-            smoothing=config['label_smoothing']
+            smoothing=config.label_smoothing
         )
 
         self.optimizer = torch.optim.Adam(
@@ -101,7 +101,7 @@ class Trainer:
             # Target output - All tokens except first
             tgt_output = tgt[:, 1:]
             
-            # Create masks - TODO: Implement create_masks function
+            # Create masks 
             src_mask, tgt_mask = create_masks(src, tgt_input, self.tokenizer.pad_id)
             
             # Forward pass
@@ -119,7 +119,7 @@ class Trainer:
             loss.backward()
             
             # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config['clip_grad'])
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad)
             
             # Update parameters
             self.optimizer.step()
@@ -171,7 +171,7 @@ class Trainer:
     
     def save_checkpoint(self, filename):
         """Save model checkpoint"""
-        checkpoint_path = os.path.join(self.config['checkpoint_dir'], filename)
+        checkpoint_path = os.path.join(self.config.checkpoint_dir, filename)
         
         checkpoint = {
             'epoch': self.current_epoch,
@@ -214,12 +214,12 @@ class Trainer:
 
             print(f"Epoch {epoch + 1} completed in {elapsed:.2f}s - Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 
-            # Generate sample translation TODO: Implement generate_translation method
-            sample_src = "A man is riding a horse."
-            sample_translation = self.generate_translation(sample_src)
-            print(f"Sample Translation:")
-            print(f"  Source: {sample_src}")
-            print(f"  Translation: {sample_translation}")
+            # # Generate sample translation TODO: Implement generate_translation method
+            # sample_src = "A man is riding a horse."
+            # sample_translation = self.generate_translation(sample_src)
+            # print(f"Sample Translation:")
+            # print(f"  Source: {sample_src}")
+            # print(f"  Translation: {sample_translation}")
 
             # Save best model
             if val_loss < self.best_val_loss:
@@ -228,14 +228,19 @@ class Trainer:
                 print(f"  New best model! Val loss: {val_loss:.4f}")
             
             # Save regular checkpoint
-            self.save_checkpoint(f"checkpoint_epoch_{epoch + 1}.pt")
-
-        
-        
+            self.save_checkpoint(f"checkpoint_epoch_{epoch + 1}.pt") 
             
 
 
 
 if __name__ == "__main__":
+
+    
     config = Config()
+
+    # Save config
+    os.makedirs(config.checkpoint_dir, exist_ok=True)
+    with open(os.path.join(config.checkpoint_dir, 'config.json'), 'w') as f:
+        json.dump(config.__dict__, f, indent=2)
+
     trainer = Trainer(config)

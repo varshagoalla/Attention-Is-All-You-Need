@@ -30,15 +30,18 @@ class WarmupLRScheduler:
         
         return lr
     
+    def get_last_lr(self):
+        """Get current learning rate as list - matches PyTorch scheduler interface"""
+        return [self._get_lr()]
+    
 
 class LabelSmoothingLoss(nn.Module):
     """
     Implements label smoothing and then cross entropy loss
     """
     
-    def __init__(self, optimizer, vocab_size, pad_idx, smoothing=0.1):
+    def __init__(self, vocab_size, pad_idx, smoothing=0.1):
         super().__init__()
-        self.optimizer = optimizer
         self.vocab_size = vocab_size
         self.pad_idx = pad_idx
         self.smoothing = smoothing
@@ -61,7 +64,7 @@ class LabelSmoothingLoss(nn.Module):
         true_dist[:, self.pad_idx] = 0
 
         # Mask out padding positions
-        mask = (target == self.pad_idx)
+        mask = (target != self.pad_idx)
 
         if mask.sum() == 0:
             # All positions are padding
@@ -83,7 +86,7 @@ def create_padding_mask(seq, pad_idx=0):
     seq: (B, T)
     Returns: (B, 1, 1, T)
     """
-    mask = (seq == pad_idx).unsqueeze(1).unsqueeze(2)
+    mask = (seq != pad_idx).unsqueeze(1).unsqueeze(2)
     return mask 
 
 def create_causal_mask(size):

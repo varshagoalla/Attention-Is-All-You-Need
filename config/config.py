@@ -14,6 +14,7 @@ class Config:
     num_layers = 6
     dropout = 0.1
     ff_dim = 2048
+    max_len = 5000
 
     # Training parameters
     batch_size = 32 # Paper uses 25000 tokens per batch which means variable batch size
