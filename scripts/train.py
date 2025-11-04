@@ -10,7 +10,7 @@ from Transformer import Transformer
 from tokenizer import Tokenizer
 from dataset import TranslationDataset, collate_fn
 from config import Config
-from utils import WarmupLRScheduler, LabelSmoothingLoss
+from utils import WarmupLRScheduler, LabelSmoothingLoss, create_masks
 
 class Trainer:
     def __init__(self, config):
@@ -139,10 +139,96 @@ class Trainer:
         
         avg_loss = total_loss / len(self.train_loader)
         return avg_loss
+    
+    def evaluate(self):
+        """Evaluate on validation set"""
+
+        # Evaluation mode - no dropout etc.
+        self.model.eval()
+        total_loss = 0
+        
+        with torch.no_grad():
+            for src, tgt in tqdm(self.val_loader, desc="Evaluating"):
+                src = src.to(self.device)
+                tgt = tgt.to(self.device)
+                
+                # (B, T)
+                tgt_input = tgt[:, :-1]
+                tgt_output = tgt[:, 1:]
+                
+                src_mask, tgt_mask = create_masks(src, tgt_input, self.tokenizer.pad_id)
+                
+                output = self.model(src, tgt_input, src_mask, tgt_mask) # (B, T, vocab_size)
+                
+                output = output.reshape(-1, self.vocab_size) # (B * T, vocab_size)
+                tgt_output = tgt_output.reshape(-1) # (B * T)
+                
+                loss = self.criterion(output, tgt_output)
+                total_loss += loss.item()
+        
+        avg_loss = total_loss / len(self.val_loader)
+        return avg_loss
+    
+    def save_checkpoint(self, filename):
+        """Save model checkpoint"""
+        checkpoint_path = os.path.join(self.config['checkpoint_dir'], filename)
+        
+        checkpoint = {
+            'epoch': self.current_epoch,
+            'global_step': self.global_step,
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'best_val_loss': self.best_val_loss,
+            'config': self.config
+        }
+        
+        torch.save(checkpoint, checkpoint_path)
+        print(f"Checkpoint saved: {checkpoint_path}")
+
+    def load_checkpoint(self, checkpoint_path):
+        """Load model checkpoint"""
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.current_epoch = checkpoint['epoch']
+        self.global_step = checkpoint['global_step']
+        self.best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+        
+        print(f"Loaded checkpoint from {checkpoint_path} (epoch {self.current_epoch})")
 
     def train(self):
+        """Main training loop"""
 
-        pass
+        self.global_step = 0
+        self.best_val_loss = float('inf')
+
+        for epoch in range(self.config.num_epochs):
+            self.current_epoch = epoch
+            
+            start_time = time.time()
+            train_loss = self.train_epoch()
+            elapsed = time.time() - start_time
+
+            val_loss = self.evaluate()
+
+            print(f"Epoch {epoch + 1} completed in {elapsed:.2f}s - Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+
+            # Generate sample translation TODO: Implement generate_translation method
+            sample_src = "A man is riding a horse."
+            sample_translation = self.generate_translation(sample_src)
+            print(f"Sample Translation:")
+            print(f"  Source: {sample_src}")
+            print(f"  Translation: {sample_translation}")
+
+            # Save best model
+            if val_loss < self.best_val_loss:
+                self.best_val_loss = val_loss
+                self.save_checkpoint("best_model.pt")
+                print(f"  New best model! Val loss: {val_loss:.4f}")
+            
+            # Save regular checkpoint
+            self.save_checkpoint(f"checkpoint_epoch_{epoch + 1}.pt")
 
         
         
