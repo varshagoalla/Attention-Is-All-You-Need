@@ -157,9 +157,6 @@ class MultiHeadAttention(nn.Module):
         k = self.split_heads(K) # (B, h, T_kv, d_k)
         v = self.split_heads(V) # (B, h, T_kv, d_v)
 
-        if mask is not None:
-            mask = mask.unsqueeze(1) # (B, 1, T_q, T_kv)
-
         outputs, attention_weights = self.attention(q, k, v, mask)
 
         outputs = self.combine_heads(outputs) # (B, T_q, h * d_v)

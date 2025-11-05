@@ -99,7 +99,7 @@ def create_causal_mask(size):
     Returns:
         mask: (1, size, size) - lower triangular matrix
     """
-    mask = torch.tril(torch.ones((size, size))).unsqueeze(0)
+    mask = torch.tril(torch.ones((size, size), dtype=torch.bool)).unsqueeze(0)
     return mask
 
 def create_masks(src, tgt, pad_idx=0):

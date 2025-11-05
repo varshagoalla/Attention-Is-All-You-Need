@@ -140,6 +140,9 @@ class Trainer:
                 'loss': f"{loss.item():.4f}",
                 'lr': f"{current_lr:.6f}"
             })
+
+            if batch_idx % 1000 == 0:
+                print(f"Total loss: {total_loss}, Step loss: {loss.item()}")
         
         avg_loss = total_loss / len(self.train_loader)
         return avg_loss
@@ -248,3 +251,4 @@ if __name__ == "__main__":
         json.dump(config.__dict__, f, indent=2)
 
     trainer = Trainer(config)
+    trainer.train()
