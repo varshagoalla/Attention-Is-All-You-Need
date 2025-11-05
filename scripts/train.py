@@ -98,6 +98,11 @@ class Trainer:
         progress_bar = tqdm(self.train_loader, desc=f"Epoch {self.current_epoch + 1}")
         
         for batch_idx, (src, tgt) in enumerate(progress_bar):
+            if src.shape[1] > 150 or tgt.shape[1] > 150:
+                skipped_batches += 1
+                print(f"\nSkipping batch {batch_idx}: src={src.shape[1]}, tgt={tgt.shape[1]}")
+                continue
+
             src = src.to(self.device)
             tgt = tgt.to(self.device)
 
@@ -145,8 +150,15 @@ class Trainer:
 
             if batch_idx % 1000 == 0:
                 print(f"Total loss: {total_loss}, Step loss: {loss.item()}")
+
+            if batch_idx % 50 == 0:
+                torch.cuda.empty_cache()
+
+            if batch_idx % 1000 == 0:
+                print(f"Total loss: {total_loss}, Step loss: {loss.item()}")
+                print(f"GPU memory: {torch.cuda.memory_allocated() / 1e9:.2f} GB / {torch.cuda.memory_reserved() / 1e9:.2f} GB")
         
-        avg_loss = total_loss / len(self.train_loader)
+        avg_loss = total_loss / (len(self.train_loader) - skipped_batches)
         return avg_loss
     
     def evaluate(self):

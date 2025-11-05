@@ -18,7 +18,7 @@ class Config:
 
     # Training parameters
     batch_size = 32 # Paper uses 25000 tokens per batch which means variable batch size
-    num_epochs = 20
+    num_epochs = 10
     num_workers = 4
         
     # Optimizer parameters

@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 
 class TranslationDataset(Dataset):
-    def __init__(self, src_file, tgt_file, tokenizer, max_len=1024):
+    def __init__(self, src_file, tgt_file, tokenizer, max_len=100):
         self.tokenizer = tokenizer
         self.max_len = max_len
         
@@ -15,7 +15,7 @@ class TranslationDataset(Dataset):
         assert len(src_lines) == len(tgt_lines)
         
         # word limit for token count
-        max_words = int(max_len * 0.7)  # 1024 tokens → ~700 words
+        max_words = int(max_len * 0.7)  # 100 tokens → ~70 words
         
         # Filter together to maintain alignment
         self.src_lines = []
