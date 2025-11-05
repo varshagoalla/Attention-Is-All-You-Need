@@ -1,6 +1,7 @@
 import os
 from datasets import load_dataset
 import sentencepiece as spm
+import re
 
 print(f"Loading WMT14 En–De dataset from Hugging Face")
 dataset = load_dataset("wmt14", "de-en")
@@ -11,24 +12,54 @@ os.makedirs("data", exist_ok=True)
 en_path = "data/train.en"
 de_path = "data/train.de"
 
-with open(en_path, "w", encoding="utf-8") as f_en, open(de_path, "w", encoding="utf-8") as f_de:
-    for item in dataset["train"]:
-        en = item["translation"]["en"].strip().replace("\n", " ")
-        de = item["translation"]["de"].strip().replace("\n", " ")
-        f_en.write(en + "\n")
-        f_de.write(de + "\n")
+def clean_line(text: str) -> str:
+    # Normalize line endings and collapse multiple spaces
+    text = text.replace("\r", " ").replace("\n", " ")
+    text = re.sub(r"\s+", " ", text)   # replace tabs, multiple spaces, etc.
+    return text.strip()                # remove leading/trailing spaces
 
+
+with open(en_path, "w", encoding="utf-8") as f_en, open(de_path, "w", encoding="utf-8") as f_de:
+    kept, skipped = 0, 0
+    for item in dataset["train"]:
+        en = clean_line(item["translation"].get("en", ""))
+        de = clean_line(item["translation"].get("de", ""))
+
+        # Keep only valid non-empty aligned pairs
+        if en and de:
+            f_en.write(en + "\n")
+            f_de.write(de + "\n")
+            kept += 1
+        else:
+            skipped += 1
+
+
+print(f"Finished writing aligned data")
+print(f"Kept: {kept:,} sentence pairs")
+print(f"Skipped: {skipped:,} incomplete or empty entries")
 print(f"Saved training files:\n  {en_path}\n  {de_path}")
 
 val_en_path = "data/val.en"
 val_de_path = "data/val.de"
-with open(val_en_path, "w", encoding="utf-8") as f_en, open(val_de_path, "w", encoding="utf-8") as f_de:
-    for item in dataset["validation"]:
-        en = item["translation"]["en"].strip().replace("\n", " ")
-        de = item["translation"]["de"].strip().replace("\n", " ")
-        f_en.write(en + "\n")
-        f_de.write(de + "\n")
 
+
+with open(val_en_path, "w", encoding="utf-8") as f_en, open(val_de_path, "w", encoding="utf-8") as f_de:
+    kept, skipped = 0, 0
+    for item in dataset["validation"]:
+        en = clean_line(item["translation"].get("en", ""))
+        de = clean_line(item["translation"].get("de", ""))
+
+        # Keep only valid non-empty aligned pairs
+        if en and de:
+            f_en.write(en + "\n")
+            f_de.write(de + "\n")
+            kept += 1
+        else:
+            skipped += 1
+
+print(f"Finished writing aligned data")
+print(f"Kept: {kept:,} sentence pairs")
+print(f"Skipped: {skipped:,} incomplete or empty entries")
 print(f"Saved validation files:\n  {val_en_path}\n  {val_de_path}")
 
 

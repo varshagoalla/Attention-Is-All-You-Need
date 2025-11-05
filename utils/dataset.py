@@ -3,11 +3,31 @@ from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 
 class TranslationDataset(Dataset):
-    def __init__(self, src_file, tgt_file, tokenizer):
+    def __init__(self, src_file, tgt_file, tokenizer, max_len=1024):
+        self.tokenizer = tokenizer
+        self.max_len = max_len
+        
         with open(src_file, 'r', encoding='utf-8') as f:
-            self.src_lines = [line.strip() for line in f]
+            src_lines = [line.strip() for line in f]
         with open(tgt_file, 'r', encoding='utf-8') as f:
-            self.tgt_lines = [line.strip() for line in f]
+            tgt_lines = [line.strip() for line in f]
+        
+        assert len(src_lines) == len(tgt_lines)
+        
+        # word limit for token count
+        max_words = int(max_len * 0.7)  # 1024 tokens → ~700 words
+        
+        # Filter together to maintain alignment
+        self.src_lines = []
+        self.tgt_lines = []
+        
+        for src, tgt in zip(src_lines, tgt_lines):
+            if len(src.split()) <= max_words and len(tgt.split()) <= max_words:
+                self.src_lines.append(src)
+                self.tgt_lines.append(tgt)
+        
+        print(f"Kept {len(self.src_lines):,}/{len(src_lines):,} pairs")
+        
         self.tokenizer = tokenizer
 
     def __len__(self):
