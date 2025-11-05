@@ -65,7 +65,9 @@ class Trainer:
             d_model=config.d_model,
             d_ff=config.ff_dim,
             max_len=config.max_len,            
-            dropout=config.dropout
+            dropout=config.dropout,
+            share_embeddings=True,
+            tie_weights=True 
         ).to(self.device)
 
         self.criterion = LabelSmoothingLoss(

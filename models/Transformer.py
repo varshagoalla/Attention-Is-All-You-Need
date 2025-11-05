@@ -258,9 +258,12 @@ class TransformerEncoder(nn.Module):
     Transformer Encoder consisting of multiple Encoder layers
     """
 
-    def __init__(self, vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1):
+    def __init__(self, vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1, embedding: Optional[nn.Embedding] = None):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, d_model)
+        if embedding is not None:
+            self.embedding = embedding
+        else:
+            self.embedding = nn.Embedding(vocab_size, d_model)
         self.positional_encoding = PositionalEncoding(d_model, max_len, dropout=dropout)
         self.layers = nn.ModuleList([EncoderLayer(h, d_model, d_ff, dropout) for _ in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
@@ -285,9 +288,12 @@ class TransformerDecoder(nn.Module):
     Transformer Decoder consisting of multiple Decoder layers
     """
 
-    def __init__(self, vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1):
+    def __init__(self, vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1, embedding: Optional[nn.Embedding] = None):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, d_model)
+        if embedding is not None:
+            self.embedding = embedding
+        else:
+            self.embedding = nn.Embedding(vocab_size, d_model)
         self.positional_encoding = PositionalEncoding(d_model, max_len, dropout=dropout)
         self.layers = nn.ModuleList([DecoderLayer(h, d_model, d_ff, dropout) for _ in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
@@ -321,10 +327,33 @@ class Transformer(nn.Module):
     Complete Transformer model consisting of Encoder and Decoder
     """
 
-    def __init__(self, src_vocab_size: int, tgt_vocab_size: int, num_layers: int, h: int, d_model: int, d_ff: int, max_len: int = 5000, dropout: float = 0.1):
+    def __init__(
+            self, 
+            src_vocab_size: int, 
+            tgt_vocab_size: int, 
+            num_layers: int, h: int, 
+            d_model: int, 
+            d_ff: int, 
+            max_len: int = 5000, 
+            dropout: float = 0.1, 
+            share_embeddings: bool = True, 
+            tie_weights: bool = True  
+        ):
         super().__init__()
-        self.encoder = TransformerEncoder(src_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout)
-        self.decoder = TransformerDecoder(tgt_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout)
+
+        if share_embeddings and src_vocab_size != tgt_vocab_size:
+            share_embeddings = False
+
+        self.share_embeddings = share_embeddings
+        self.tie_weights = tie_weights
+
+        shared_embedding = nn.Embedding(src_vocab_size, d_model) if share_embeddings else None
+
+        self.encoder = TransformerEncoder(src_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout, shared_embedding)
+        self.decoder = TransformerDecoder(tgt_vocab_size, num_layers, h, d_model, d_ff, max_len, dropout, shared_embedding)
+
+        if tie_weights:
+            self.decoder.fc_out.weight = self.decoder.embedding.weight
 
     def forward(self, src: torch.Tensor, tgt: torch.Tensor, src_mask: Optional[torch.Tensor] = None, tgt_mask: Optional[torch.Tensor] = None):
         enc_outputs = self.encoder(src, src_mask)
