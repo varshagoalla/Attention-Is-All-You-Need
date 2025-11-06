@@ -1,0 +1,9 @@
+# PyTorch 1.13.1 (last version supporting Python 3.8)
+torch==1.13.1+cu117
+torchvision==0.14.1+cu117
+torchaudio==0.13.1+cu117
+--extra-index-url https://download.pytorch.org/whl/cu117
+
+sentencepiece>=0.1.99
+tqdm>=4.65.0
+numpy>=1.21.0
